@@ -1,5 +1,5 @@
 from .operations import ops
-from .experiment_controller import TestSystem
+from .experiment_controller import ExperimentSystem
 import asyncio
 import sys
 import os
@@ -21,8 +21,8 @@ def main():
         experiment_configs = [f"{EXPERIMENTS_DIR}/{file_name}" for file_name in args]
 
     async def run_experiments():
-        experiments = TestSystem(experiment_configs=experiment_configs)
-        await experiments.main_testing_loop()
+        experiments = ExperimentSystem(experiment_configs=experiment_configs)
+        await experiments.main_experiment_loop()
     
     asyncio.run(run_experiments())
 

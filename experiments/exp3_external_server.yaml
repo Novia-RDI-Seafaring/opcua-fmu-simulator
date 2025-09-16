@@ -11,8 +11,8 @@ external_servers: [servers/example_server.yaml] # This is path to the config for
 
 ################# Scenario #################
 
-test:
-  test_name: External server
+experiment:
+  experiment_name: External server
   timestep: 1                   
   timing: "real_time"  
   stop_time: 30.0  

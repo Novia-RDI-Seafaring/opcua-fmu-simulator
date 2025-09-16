@@ -19,18 +19,18 @@ from .infra.clients import client_manager
 
 getcontext().prec = 8
 DEFAULT_BASE_PORT = 7000 # port from which the server initialization begins
-DEFAULT_LOGGER_HEADER = "test_name, evaluation_name, evaluation_function, measured_value, test_result, system_timestamp\n"
+DEFAULT_LOGGER_HEADER = "experiment_name, evaluation_name, evaluation_function, measured_value, experiment_result, system_timestamp\n"
 
-class TestSystem:
+class ExperimentSystem:
     def __init__(self, experiment_configs: list[str]) -> None:
         self.experiment_configs = experiment_configs
         self.log_file    = self.generate_logfile()
         self.config      = None 
         self.fmu_files   = None
-        self.test        = None
+        self.experiment  = None
         self.save_logs   = None
         self.timing      = None
-        self.connections = None # description of system loop definition from test
+        self.connections = None # description of system loop definition from experiment
         self.server_obj  = None
         self.reading_condition_dict  = {}
         self.evaluation_equation_dic = {}
@@ -44,11 +44,12 @@ class TestSystem:
         file_path = os.path.join("logs", strftime("%Y_%m_%d_%H_%M_%S", gmtime()))
         if not os.path.exists(file_path):
             with open(file_path, 'w') as file:
+                print(DEFAULT_LOGGER_HEADER)
                 file.write(DEFAULT_LOGGER_HEADER)
         return file_path    
     
     def log_result(self, criterea, measured_value, evaluation_result, simulation_time):
-        system_output = f"{self.config['test']['test_name']},\
+        system_output = f"{self.config['experiment']['experiment_name']},\
             {criterea},\
             {self.evaluation_equation_dic[criterea]['target_obj']}.{self.evaluation_equation_dic[criterea]['target_var']} {self.evaluation_equation_dic[criterea]['operator']} {self.evaluation_equation_dic[criterea]['value']},\
             {measured_value},\
@@ -143,22 +144,22 @@ class TestSystem:
     ################################################
     ############### SYSTEM TESTS ###################
     ################################################
-    async def run_multi_step_test(self, test: dict):
+    async def run_multi_step_experiment(self, experiment: dict):
         """
-        Executes the test while regulating time according to test["timing"]:
+        Executes the experiment while regulating time according to experiment["timing"]:
         - "simulation_time": advances time instantly
         - "real_time": waits so each step aligns with real wall-clock time
         """
         sim_time = 0.0
         simulation_status = True
         # TODO: PUT IN SETUP
-        timestep = float(test["timestep"])  # assumed constant across system
+        timestep = float(experiment["timestep"])  # assumed constant across system
 
-        if timestep > test["stop_time"]:
+        if timestep > experiment["stop_time"]:
             raise ValueError("stop_time has to be equal or greater than step_time")
 
         print(f"""Starting simulation:
-        Test: {self.test['test_name']}
+        Experiment: {self.experiment['experiment_name']}
         FMU's: {self.fmu_files}
         Simulating""", end="", flush=True)
 
@@ -172,8 +173,8 @@ class TestSystem:
             await self.run_single_loop()
 
             # Evaluation logic
-            if await self.check_reading_conditions(test["start_readings_conditions"]):
-                await self.check_outputs(test["evaluation"], simulation_time=sim_time)
+            if await self.check_reading_conditions(experiment["start_readings_conditions"]):
+                await self.check_outputs(experiment["evaluation"], simulation_time=sim_time)
 
             # Time advancement
             sim_time += timestep
@@ -183,7 +184,7 @@ class TestSystem:
             
             print(".", end="", flush=True)
 
-            if sim_time > test["stop_time"]:
+            if sim_time > experiment["stop_time"]:
                 simulation_status = False
                 print("Simulation ended\n\n ")
 
@@ -197,18 +198,18 @@ class TestSystem:
             # ADD MESSAGE TO LOG FILES
             
             
-    async def run_test(self) -> None:
+    async def run_experiment(self) -> None:
         """
-        check_test_type
-        call corresponding test
+        check_experiment_type
+        call corresponding experiment
         """
-        # reset and initialize system variables for every test
+        # reset and initialize system variables for every experiment
         await self.client_obj.reset_system() 
-        await self.client_obj.initialize_system_variables(test=self.test)
-        # parses system_loop section of the test and stores it to use it as the system loop
+        await self.client_obj.initialize_system_variables(experiment=self.experiment)
+        # parses system_loop section of the experiment and stores it to use it as the system loop
         print("Parsing connections...") 
-        self.connections = parse_connections(self.test["system_loop"])
-        await self.run_multi_step_test(test=self.test)
+        self.connections = parse_connections(self.experiment["system_loop"])
+        await self.run_multi_step_experiment(experiment=self.experiment)
 
     def log_system_output(self, output):
         with open(self.log_file, 'a') as file:            
@@ -232,8 +233,8 @@ class TestSystem:
             evaluation_result = ops[op](measured_value, target_value)
             variable = self.evaluation_equation_dic[criterea]["target_var"]
 
-            if evaluation_result: logger.info(Fore.GREEN + f"test {variable} {op} {self.evaluation_equation_dic[criterea]['value']} = {evaluation_result} \n PASSED with value: {measured_value}")
-            else:                 logger.info(Fore.RED   + f"test {variable} {op} {self.evaluation_equation_dic[criterea]['value']} = {evaluation_result} \n FAILED with value: {measured_value}")
+            if evaluation_result: logger.info(Fore.GREEN + f"experiment {variable} {op} {self.evaluation_equation_dic[criterea]['value']} = {evaluation_result} \n PASSED with value: {measured_value}")
+            else:                 logger.info(Fore.RED   + f"experiment {variable} {op} {self.evaluation_equation_dic[criterea]['value']} = {evaluation_result} \n FAILED with value: {measured_value}")
             
             if self.save_logs:
                 self.log_result(criterea          = criterea, 
@@ -292,9 +293,9 @@ class TestSystem:
         setattr(self, store_dict_name, parsed_dict)
 
 
-    async def initialize_test_params(self, test):
-            print("Initializing test parameters...")
-            self.config    = DataLoaderClass(test).data
+    async def initialize_experiment_params(self, experiment):
+            print("Initializing experiment parameters...")
+            self.config    = DataLoaderClass(experiment).data
 
             try:
                 # Check FMU files
@@ -307,53 +308,53 @@ class TestSystem:
                 if not isinstance(self.external_servers, list):
                     raise ValueError("'external_servers' must be a list")
 
-                # Check test section
-                self.test = self.config.get("test")
-                if not isinstance(self.test, dict):
-                    raise ValueError("'test' section must be a dictionary")
+                # Check experiment section
+                self.experiment = self.config.get("experiment")
+                if not isinstance(self.experiment, dict):
+                    raise ValueError("'experiment' section must be a dictionary")
 
-                # Individual test parameters
-                self.test_name = self.test.get("test_name")
-                if not isinstance(self.test_name, str) or not self.test_name:
-                    raise ValueError("'test_name' must be a non-empty string")
+                # Individual experiment parameters
+                self.experiment_name = self.experiment.get("experiment_name")
+                if not isinstance(self.experiment_name, str) or not self.experiment_name:
+                    raise ValueError("'experiment_name' must be a non-empty string")
 
-                self.timestep = self.test.get("timestep")
+                self.timestep = self.experiment.get("timestep")
                 if not isinstance(self.timestep, (int, float)) or self.timestep <= 0:
                     raise ValueError("'timestep' must be a positive number")
 
-                self.timing = self.test.get("timing")
+                self.timing = self.experiment.get("timing")
                 if self.timing not in ["simulation_time", "real_time"]:
                     raise ValueError("'timing' must be either 'simulation_time' or 'real_time'")
 
-                self.stop_time = self.test.get("stop_time")
+                self.stop_time = self.experiment.get("stop_time")
                 if not isinstance(self.stop_time, (int, float)) or self.stop_time <= 0:
                     raise ValueError("'stop_time' must be a positive number")
 
-                self.save_logs = self.test.get("save_logs")
+                self.save_logs = self.experiment.get("save_logs")
                 if not isinstance(self.save_logs, bool):
                     raise ValueError("'save_logs' must be True or False")
 
                 # Check initial system state
-                self.initial_system_state = self.test.get("initial_system_state", {})
+                self.initial_system_state = self.experiment.get("initial_system_state", {})
                 if not isinstance(self.initial_system_state, dict):
                     raise ValueError("'initial_system_state' must be a dictionary")
 
                 # For reading conditions
                 self._parse_conditions(
-                    conditions_dict=self.test.get("start_readings_conditions", {}),
+                    conditions_dict=self.experiment.get("start_readings_conditions", {}),
                     store_dict_name="reading_condition_dict",
                     description="reading condition"
                 )
 
                 # For evaluation conditions
                 self._parse_conditions(
-                    conditions_dict=self.test.get("evaluation", {}),
+                    conditions_dict=self.experiment.get("evaluation", {}),
                     store_dict_name="evaluation_equation_dic",
                     description="evaluation condition"
                 )
 
                 # System loop checks
-                self.system_loop = self.test.get("system_loop", [])
+                self.system_loop = self.experiment.get("system_loop", [])
                 if not isinstance(self.system_loop, list):
                     raise ValueError("'system_loop' must be a list of connections")
 
@@ -366,26 +367,26 @@ class TestSystem:
     ################################################################################
     ###########################   MAIN LOOP   ######################################
     ################################################################################
-    async def main_testing_loop(self):
+    async def main_experiment_loop(self):
         # initialize fmu servers, clients and vairable id storage
         
-        # experiment_configs = [experiments/test1.yaml experiments/test2.yaml, ...]
-        test_files = []
+        # experiment_configs = [experiments/experiment1.yaml experiments/experiment2.yaml, ...]
+        experiment_files = []
         for config in self.experiment_configs:
-            test_files.append(os.path.join(config))
+            experiment_files.append(os.path.join(config))
 
 
-        #test_files = self.experiment_files
-        #test_files = [os.path.join(self.experiment_files, i) for i in os.listdir(self.experiment_files)]
+        #experiment_files = self.experiment_files
+        #experiment_files = [os.path.join(self.experiment_files, i) for i in os.listdir(self.experiment_files)]
 
-        for test_file in test_files:
-            await self.initialize_test_params(test= test_file)
-            self.server_obj = await server_manager.create(test_config= self.config)
+        for experiment_file in experiment_files:
+            await self.initialize_experiment_params(experiment= experiment_file)
+            self.server_obj = await server_manager.create(experiment_config= self.config)
             self.gather_system_ids()
             self.client_obj = await client_manager.create(system_servers = self.server_obj.system_servers, 
                                                           remote_servers = self.server_obj.remote_servers, 
                                                           system_node_ids= self.system_node_ids)
             
-            await self.run_test()
+            await self.run_experiment()
             await self.server_obj.close()
             await self.client_obj.close()

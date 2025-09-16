@@ -26,21 +26,21 @@ external_servers: []
 
 ################# Scenario #################
 
-test:
-  test_name: Water Level Control      # Scenario name for logs
-  timestep: 1                         # seconds, communication timestep
-  timing: "simulation_time"           # simulation_time or real_time 
-  stop_time: 300                      # seconds 
-  save_logs: True                     # true/false
+experiment:
+  experiment_name: Water Level Control  # Scenario name for logs
+  timestep: 1                           # seconds, communication timestep
+  timing: "simulation_time"             # simulation_time or real_time 
+  stop_time: 300                        # seconds 
+  save_logs: True                       # true/false
 
-  initial_system_state:               # Define timestep and initial conditions
+  initial_system_state:                 # Define timestep and initial conditions
     
-    WaterTankSystem:                  # Model description -> "Model name"
-      timestep: 0.2                   # This has to be defined for every fmu
+    WaterTankSystem:                    # Model description -> "Model name"
+      timestep: 0.2                     # This has to be defined for every fmu
     
     TankLevel_PI:             
       timestep: 1
-      SP_WaterLevel_in: 10            # Input for the TankLevel_PI    
+      SP_WaterLevel_in: 10              # Input for the TankLevel_PI    
 
   start_readings_conditions: 
     condition_01: "TankLevel_PI.CV_PumpCtrl_out > 0.01" # Logging starts, when this condition is met

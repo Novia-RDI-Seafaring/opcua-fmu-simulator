@@ -14,8 +14,8 @@ external_servers: []
 
 ################# Scenario #################
 
-test:
-  test_name: Lube Oil Cooling
+experiment:
+  experiment_name: Lube Oil Cooling
   timestep: 0.5     
   timing: "simulation_time"  
   stop_time: 1000.0  

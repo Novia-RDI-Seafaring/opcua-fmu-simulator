@@ -79,12 +79,12 @@ class client_manager:
             object_node = self.system_clients[client_name].get_node(ua.NodeId(1, 1))
             await object_node.call_method(ua.NodeId(1, 4))
 
-    async def initialize_system_variables(self, test:dict) -> None:
+    async def initialize_system_variables(self, experiment:dict) -> None:
         """
         initialize system variables base on input state
         uses user defined initial state
         """
-        initial_system_state = test["initial_system_state"]
+        initial_system_state = experiment["initial_system_state"]
         for server in initial_system_state:
             for variable in initial_system_state[server]:
                 object_node = self.system_clients[server].get_node(ua.NodeId(1, 1))
